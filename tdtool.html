@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tracking Lines Editor</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #232429;
+      color: #fff;
+      font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    }
+    #canvasContainer {
+      position: fixed;
+      left: 270px;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: calc(100vw - 270px);
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    #canvas {
+      background: transparent;
+      max-width: 100%;
+      max-height: 100vh;
+      display: block;
+      margin: auto;
+      border-radius: 16px;
+      box-shadow: 0 8px 48px #0005;
+    }
+    #controls {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 260px;
+      min-height: 100vh;
+      padding: 22px 18px 18px 16px;
+      background: rgba(35,36,41,0.98);
+      box-shadow: 2px 0 24px #0005;
+      border-radius: 0 16px 16px 0;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+    .section {
+      margin-bottom: 18px;
+    }
+    label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 9px 0;
+      font-size: 14px;
+    }
+    input, select, button {
+      margin-left: 8px;
+      border-radius: 5px;
+      border: none;
+    }
+    button {
+      background: linear-gradient(90deg, #a0b8c8 0%, #8188ad 100%);
+      color: #fff;
+      font-weight: 500;
+      padding: 5px 13px;
+      box-shadow: 0 1px 6px #0001;
+      cursor: pointer;
+    }
+    input[type=range] {
+      flex: 1;
+      margin: 0 8px;
+    }
+    input[type=checkbox] {
+      accent-color: #9bf;
+    }
+    select {
+      background: #252a36;
+      color: #fff;
+      border: none;
+      padding: 2px 7px;
+    }
+    ::-webkit-scrollbar { width: 6px; background: #202127; }
+    ::-webkit-scrollbar-thumb { background: #393d44; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div id="canvasContainer">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="controls">
+    <h2>Tracking Lines Editor</h2>
+    <div class="section">
+      <label>Mode <select id="toolMode"><option value="anchor">Anchor Tool</option><option value="border">Path Tool</option><option value="box">Box Tool</option></select></label>
+      <label>Image <input type="file" id="imgInput" accept="image/*"></label>
+      <label>Export <button id="exportBtn">PNG Export</button></label>
+    </div>
+    <div id="anchorSection" class="section">
+      <h2>Anchor Tool</h2>
+      <label>Clear All <button id="clearAnchors">Clear</button></label>
+      <label><span>Show Circles</span><input type="checkbox" id="toggleCircles" checked></label>
+      <label><span>Show Labels</span><input type="checkbox" id="toggleAnchorLabels" checked></label>
+      <label><span>Delete Mode</span><input type="checkbox" id="deleteAnchorMode"></label>
+      <label>Circle Min <input type="range" id="circleMin" min="0" max="0.5" step="0.01" value="0.05"></label>
+      <label>Circle Max <input type="range" id="circleMax" min="0" max="1" step="0.01" value="0.15"></label>
+      <label>Line Style <select id="lineStyle"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="mixed">Mixed</option></select></label>
+      <label>Edge Width <input type="range" id="edgeWidth" min="0.5" max="8" step="0.1" value="2"></label>
+      <label>Density <input type="range" id="density" min="0" max="1" step="0.01" value="0.5"></label>
+    </div>
+    <div id="borderSection" class="section">
+      <h2>Path Tool</h2>
+      <label>Clear All <button id="clearBorderAnchors">Clear</button></label>
+      <label><span>Hide Path</span><input type="checkbox" id="hidePath"></label>
+      <label><span>Show Labels</span><input type="checkbox" id="toggleBorderLabels" checked></label>
+      <label><span>Delete Mode</span><input type="checkbox" id="deleteBorderMode"></label>
+      <label><span>Enable Effect</span><input type="checkbox" id="effectToggle"></label>
+      <label>Effect Density <input type="range" id="effectDensity" min="1" max="26" step="1" value="26"></label>
+      <label>Effect Thickness <input type="range" id="effectThickness" min="1" max="8" step="0.5" value="2"></label>
+      <label>Direction <select id="effectDir"><option value="outward">Outward</option><option value="inward">Inward</option></select></label>
+    </div>
+    <div id="boxSection" class="section">
+      <h2>Box Tool</h2>
+      <label>Box Stroke <input type="range" id="manualBoxWidth" min="1" max="10" step="1" value="3"></label>
+      <label>Clear All <button id="clearBoxes">Clear</button></label>
+    </div>
+  </div>
+  <script>
+// ——— State & Undo ———
+let snapshotStack = [], snapshotPtr = -1;
+function takeSnapshot() {
+  snapshotStack = snapshotStack.slice(0, snapshotPtr+1);
+  snapshotStack.push({
+    anchors: anchors.map(p=>({...p})),
+    borderAnchors: borderAnchors.map(p=>({...p})),
+    boxes: boxes.map(b=>({...b}))
+  });
+  snapshotPtr = snapshotStack.length-1;
+}
+function restoreSnapshot() {
+  if (snapshotPtr < 0) return;
+  const snap = snapshotStack[snapshotPtr];
+  anchors = snap.anchors.map(p=>({...p}));
+  borderAnchors = snap.borderAnchors.map(p=>({...p}));
+  boxes = snap.boxes.map(b=>({...b}));
+  draw();
+}
+function undo() { if (snapshotPtr > 0) { snapshotPtr--; restoreSnapshot(); } }
+function redo() { if (snapshotPtr < snapshotStack.length-1) { snapshotPtr++; restoreSnapshot(); } }
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+  if ((e.ctrlKey||e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key==='z'))) { e.preventDefault(); redo(); }
+});
+
+// ——— DOM ———
+const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+const toolMode = document.getElementById('toolMode');
+const imgInput = document.getElementById('imgInput');
+const exportBtn = document.getElementById('exportBtn');
+const clearAnchors = document.getElementById('clearAnchors');
+const clearBorder = document.getElementById('clearBorderAnchors');
+const clearBoxes = document.getElementById('clearBoxes');
+const toggleCircles = document.getElementById('toggleCircles');
+const toggleAnchorLabels = document.getElementById('toggleAnchorLabels');
+const deleteAnchorMode = document.getElementById('deleteAnchorMode');
+const circleMin = document.getElementById('circleMin');
+const circleMax = document.getElementById('circleMax');
+const lineStyle = document.getElementById('lineStyle');
+const edgeWidth = document.getElementById('edgeWidth');
+const density = document.getElementById('density');
+const hidePath = document.getElementById('hidePath');
+const toggleBorderLabels = document.getElementById('toggleBorderLabels');
+const deleteBorderMode = document.getElementById('deleteBorderMode');
+const effectToggle = document.getElementById('effectToggle');
+const effectDensity = document.getElementById('effectDensity');
+const effectThickness = document.getElementById('effectThickness');
+const effectDir = document.getElementById('effectDir');
+const manualBoxWidth = document.getElementById('manualBoxWidth');
+const anchorSection = document.getElementById('anchorSection');
+const borderSection = document.getElementById('borderSection');
+const boxSection = document.getElementById('boxSection');
+let img = new Image(), imgScale = 1;
+let anchors = [], borderAnchors = [], boxes = [];
+let draggingBox = false, boxStart = null;
+let selecting = false, selStart, selEnd;
+
+function updateSections() {
+  anchorSection.style.display = toolMode.value === 'anchor' ? 'block' : 'none';
+  borderSection.style.display = toolMode.value === 'border' ? 'block' : 'none';
+  boxSection.style.display = toolMode.value === 'box' ? 'block' : 'none';
+  draw();
+}
+function resizeCanvas() {
+  if (!img.naturalWidth) { canvas.width = 960; canvas.height = 600; }
+  else {
+    const maxW = window.innerWidth - 370, maxH = window.innerHeight;
+    imgScale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+    canvas.width = img.naturalWidth * imgScale;
+    canvas.height = img.naturalHeight * imgScale;
+  }
+  draw();
+}
+toolMode.addEventListener('change', updateSections);
+window.addEventListener('resize', resizeCanvas);
+img.onload = () => { resizeCanvas(); takeSnapshot(); };
+imgInput.onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  img.src = URL.createObjectURL(file);
+  anchors = []; borderAnchors = []; boxes = [];
+  setTimeout(resizeCanvas, 50);
+  setTimeout(takeSnapshot, 100);
+};
+exportBtn.onclick = () => {
+  const a = document.createElement('a');
+  a.download = 'canvas.png';
+  a.href = canvas.toDataURL();
+  a.click();
+};
+clearAnchors.onclick = () => { anchors = []; draw(); takeSnapshot(); };
+clearBorder.onclick = () => { borderAnchors = []; draw(); takeSnapshot(); };
+clearBoxes.onclick = () => { boxes = []; draw(); takeSnapshot(); };
+// ——— Draw Logic ———
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (img.naturalWidth) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  // Anchor lines
+  if (anchors.length > 1) {
+    ctx.save(); ctx.strokeStyle = '#fff';
+    ctx.lineWidth = edgeWidth.value;
+    if (lineStyle.value === 'dashed') ctx.setLineDash([10,6]);
+    else if (lineStyle.value === 'mixed') ctx.setLineDash([6,4,2,4]);
+    else ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(anchors[0].x, anchors[0].y);
+    for (let i = 1; i < anchors.length; ++i) ctx.lineTo(anchors[i].x, anchors[i].y);
+    ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  }
+  // Anchor decorations (boxes, label, circle)
+  anchors.forEach((p,i) => {
+    ctx.fillStyle = '#fff'; ctx.fillRect(p.x-4, p.y-4, 8, 8);
+    if (toggleAnchorLabels.checked) {
+      ctx.font = '14px Inter, Arial'; ctx.fillStyle = '#f8f8fa';
+      ctx.fillText(`label${i+1}`, p.x+6, p.y-6);
+    }
+    if (toggleCircles.checked) {
+      const r = canvas.width * (parseFloat(circleMin.value) + Math.random() * (parseFloat(circleMax.value)-parseFloat(circleMin.value)));
+      ctx.setLineDash([4,4]);
+      ctx.strokeStyle = '#bbb';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    }
+  });
+  // Path tool lines
+  if (!hidePath.checked && borderAnchors.length>1) {
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(borderAnchors[0].x, borderAnchors[0].y);
+    for (let i = 1; i < borderAnchors.length; ++i) ctx.lineTo(borderAnchors[i].x, borderAnchors[i].y);
+    ctx.stroke();
+    ctx.restore();
+    if (toggleBorderLabels.checked) {
+      borderAnchors.forEach((p,i) => {
+        ctx.font = '14px Inter, Arial'; ctx.fillStyle = '#e4e4eb';
+        ctx.fillText(String.fromCharCode(97+i), p.x+6, p.y-6);
+      });
+    }
+  }
+  // Path tool effect: 26 letters lines
+  if (effectToggle.checked && borderAnchors.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = effectThickness.value;
+    const N = Math.floor(+effectDensity.value);
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (let i = 0; i < borderAnchors.length-1; ++i) {
+      const A = borderAnchors[i], B = borderAnchors[i+1];
+      const dx = B.x - A.x, dy = B.y - A.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 10) continue;
+      const nx = dy/len, ny = -dx/len;
+      for (let j = 0; j < N; ++j) {
+        const t = (j+0.5)/N;
+        const px = A.x + dx*t, py = A.y + dy*t;
+        let off = (effectDir.value==='outward'?1:-1)*(38+Math.random()*44);
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + nx*off, py + ny*off); ctx.stroke();
+        ctx.font = '13px monospace'; ctx.fillStyle = '#e0e0e5';
+        ctx.fillText(letters[j%26], px+nx*off+2, py+ny*off-2);
+      }
+    }
+    ctx.restore();
+  }
+  // Box tool
+  boxes.forEach(b => {
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = manualBoxWidth.value;
+    ctx.strokeRect(b.x1, b.y1, b.x2-b.x1, b.y2-b.y1);
+    // Add ratio label (only pure number, not unit)
+    const w = Math.abs(b.x2-b.x1), h = Math.abs(b.y2-b.y1);
+    ctx.font = '15px Inter, Arial'; ctx.fillStyle = '#f4f4fa';
+    const ratio = w && h ? (w/h).toFixed(5) : 'NaN';
+    ctx.fillText(ratio, Math.min(b.x1, b.x2)+w/2-16, Math.min(b.y1, b.y2)-8);
+    ctx.restore();
+  });
+}// ——— Mouse & Interactive Events ———
+[
+  toggleCircles, toggleAnchorLabels, deleteAnchorMode, circleMin, circleMax, lineStyle, edgeWidth, density,
+  hidePath, toggleBorderLabels, deleteBorderMode, effectToggle, effectDensity, effectThickness, effectDir, manualBoxWidth
+].forEach(el => el.addEventListener('input', draw));
+
+canvas.addEventListener('click', e => {
+  const r = canvas.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  if (toolMode.value === 'anchor' && !deleteAnchorMode.checked) {
+    anchors.push({ x, y }); draw(); takeSnapshot();
+  } else if (toolMode.value === 'border' && !deleteBorderMode.checked) {
+    borderAnchors.push({ x, y }); draw(); takeSnapshot();
+  }
+});
+canvas.addEventListener('mousedown', e => {
+  const r = canvas.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  if ((toolMode.value === 'anchor' && deleteAnchorMode.checked) || (toolMode.value === 'border' && deleteBorderMode.checked)) {
+    selecting = true; selStart = { x, y };
+  } else if (toolMode.value === 'box') {
+    draggingBox = true; boxStart = { x, y };
+  }
+});
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  if (selecting || draggingBox) {
+    draw(); ctx.setLineDash([3,3]); ctx.strokeStyle = '#bbb7';
+    const sx = selecting ? selStart.x : boxStart.x;
+    const sy = selecting ? selStart.y : boxStart.y;
+    ctx.lineWidth = draggingBox ? manualBoxWidth.value : 1;
+    ctx.strokeRect(sx, sy, x - sx, y - sy);
+    ctx.setLineDash([]);
+    if (selecting) selEnd = { x, y };
+  }
+});
+canvas.addEventListener('mouseup', e => {
+  const r = canvas.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  if (selecting) {
+    const x0 = Math.min(selStart.x, selEnd.x), x1 = Math.max(selStart.x, selEnd.x);
+    const y0 = Math.min(selStart.y, selEnd.y), y1 = Math.max(selStart.y, selEnd.y);
+    if (toolMode.value === 'anchor') {
+      anchors = anchors.filter(p => p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1);
+    } else if (toolMode.value === 'border') {
+      borderAnchors = borderAnchors.filter(p => p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1);
+    } else if (toolMode.value === 'box') {
+      boxes = boxes.filter(b => b.x1 < x0 || b.x1 > x1 || b.y1 < y0 || b.y1 > y1 || b.x2 < x0 || b.x2 > x1 || b.y2 < y0 || b.y2 > y1);
+    }
+    selecting = false; selStart = selEnd = null; draw(); takeSnapshot();
+  } else if (draggingBox) {
+    boxes.push({ x1: boxStart.x, y1: boxStart.y, x2: x, y2: y });
+    draggingBox = false; draw(); takeSnapshot();
+  }
+});
+window.onload = () => {resizeCanvas(); draw();}
+  </script>
+</body>
+</html>

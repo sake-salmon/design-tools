@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>工具箱密钥验证</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      color: #111;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+    body {
+      min-height: 100vh;
+      min-width: 100vw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2.1rem;
+      width: 100vw;
+      max-width: 420px;
+    }
+    h1 {
+      font-size: 1.45rem;
+      font-weight: bold;
+      margin: 0;
+      text-align: center;
+      letter-spacing: 0.02em;
+      color: #111;
+    }
+    .input-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      gap: 1.1em;
+    }
+    input[type="text"] {
+      font-size: 1.18rem;
+      padding: 0.45em 1.1em;
+      border: 1.3px solid #111;
+      border-radius: 0.7em;
+      background: #fff;
+      color: #111;
+      outline: none;
+      width: 210px;
+      box-sizing: border-box;
+      text-align: center;
+      letter-spacing: 0.02em;
+      font-family: inherit;
+    }
+    button {
+      font-size: 1rem;
+      background: #111;
+      color: #fff;
+      padding: 0.45em 1.5em;
+      border: none;
+      border-radius: 0.7em;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+    button:hover {
+      background: #333;
+    }
+    #message {
+      font-size: 1.08rem;
+      margin: 0;
+      min-height: 2.2em;
+      text-align: center;
+      color: #111;
+      font-weight: normal;
+    }
+    @media (max-width: 520px) {
+      .container { max-width: 100vw; }
+      input[type="text"] { width: 80vw; font-size: 1rem; }
+      h1 { font-size: 1.15rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>输入三文鱼密钥</h1>
+    <div class="input-row">
+      <input id="keyInput" type="text" placeholder="请输入密钥" autofocus />
+      <button id="btn">验证</button>
+    </div>
+    <div id="message"></div>
+  </div>
+  <script>
+    let validKeys = [];
+    fetch('keys.json')
+      .then(r => r.json())
+      .then(keys => validKeys = keys)
+      .catch(() => {
+        document.getElementById('message').textContent = '无法加载密钥列表';
+        document.getElementById('message').style.color = '#e22';
+      });
+    document.getElementById('btn').onclick = function() {
+      const key = document.getElementById('keyInput').value.trim();
+      const msg = document.getElementById('message');
+      msg.style.color = '#111';
+      if (!key) {
+        msg.style.color = '#e22';
+        msg.textContent = '请输入密钥';
+        return;
+      }
+      if (validKeys.includes(key)) {
+        msg.style.color = '#0a0';
+        msg.textContent = '验证成功，正在进入主页...';
+        setTimeout(() => {
+          window.location.href = 'index.html';
+        }, 800);
+      } else {
+        msg.style.color = '#e22';
+        msg.textContent = '密钥错误，请重试';
+      }
+    };
+    document.getElementById('keyInput').addEventListener('keydown', function(e) {
+      if(e.key === 'Enter') document.getElementById('btn').click();
+    });
+  </script>
+</body>
+</html>
