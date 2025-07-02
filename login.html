@@ -114,6 +114,8 @@
         return;
       }
       if (validKeys.includes(key)) {
+        // 这里设置 localStorage 标记
+        localStorage.setItem('isSalmonAuthed', '1');
         msg.style.color = '#0a0';
         msg.textContent = '验证成功，正在进入主页...';
         setTimeout(() => {
