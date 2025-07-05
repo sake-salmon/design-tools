@@ -105,7 +105,9 @@
     <div class="section">
       <label>Mode <select id="toolMode"><option value="anchor">Anchor Tool</option><option value="border">Path Tool</option><option value="box">Box Tool</option></select></label>
       <label>Image <input type="file" id="imgInput" accept="image/*"></label>
+      <label><span>Show Image</span><input type="checkbox" id="showImg" checked></label>
       <label>Export <button id="exportBtn">PNG Export</button></label>
+      <label>HD Export <button id="exportHdBtn">高清PNG</button></label>
     </div>
     <div id="anchorSection" class="section">
       <h2>Anchor Tool</h2>
@@ -137,6 +139,113 @@
     </div>
   </div>
   <script>
+  function drawHD(ctx, scale) {
+  ctx.clearRect(0, 0, canvas.width * scale, canvas.height * scale);
+
+  if (img.naturalWidth && document.getElementById('showImg')?.checked)
+    ctx.drawImage(img, 0, 0, canvas.width * scale, canvas.height * scale);
+
+  // Anchor lines
+  if (anchors.length > 1) {
+    ctx.save(); ctx.strokeStyle = '#fff';
+    ctx.lineWidth = edgeWidth.value * scale;
+    if (lineStyle.value === 'dashed') ctx.setLineDash([10*scale,6*scale]);
+    else if (lineStyle.value === 'mixed') ctx.setLineDash([6*scale,4*scale,2*scale,4*scale]);
+    else ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(anchors[0].x*scale, anchors[0].y*scale);
+    for (let i = 1; i < anchors.length; ++i) ctx.lineTo(anchors[i].x*scale, anchors[i].y*scale);
+    ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  }
+
+  // Anchor decorations (boxes, label, circle)
+  anchors.forEach((p,i) => {
+    ctx.fillStyle = '#fff'; ctx.fillRect(p.x*scale-4*scale, p.y*scale-4*scale, 8*scale, 8*scale);
+    if (toggleAnchorLabels.checked) {
+      ctx.font = (14*scale) + 'px Inter, Arial'; ctx.fillStyle = '#f8f8fa';
+      ctx.fillText(`label${i+1}`, (p.x+6)*scale, (p.y-6)*scale);
+    }
+    if (toggleCircles.checked) {
+      const r = canvas.width * (parseFloat(circleMin.value) + Math.random() * (parseFloat(circleMax.value)-parseFloat(circleMin.value)));
+      ctx.setLineDash([4*scale,4*scale]);
+      ctx.strokeStyle = '#bbb';
+      ctx.lineWidth = 1*scale;
+      ctx.beginPath(); ctx.arc(p.x*scale, p.y*scale, r*scale, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    }
+  });
+
+  // Path tool lines
+  if (!hidePath.checked && borderAnchors.length>1) {
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2*scale;
+    ctx.beginPath();
+    ctx.moveTo(borderAnchors[0].x*scale, borderAnchors[0].y*scale);
+    for (let i = 1; i < borderAnchors.length; ++i) ctx.lineTo(borderAnchors[i].x*scale, borderAnchors[i].y*scale);
+    ctx.stroke();
+    ctx.restore();
+    if (toggleBorderLabels.checked) {
+      borderAnchors.forEach((p,i) => {
+        ctx.font = (14*scale) + 'px Inter, Arial'; ctx.fillStyle = '#e4e4eb';
+        ctx.fillText(String.fromCharCode(97+i), (p.x+6)*scale, (p.y-6)*scale);
+      });
+    }
+  }
+
+  // Path tool effect: 26 letters lines
+  if (effectToggle.checked && borderAnchors.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = effectThickness.value * scale;
+    const N = Math.floor(+effectDensity.value);
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (let i = 0; i < borderAnchors.length-1; ++i) {
+      const A = borderAnchors[i], B = borderAnchors[i+1];
+      const dx = B.x - A.x, dy = B.y - A.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 10) continue;
+      const nx = dy/len, ny = -dx/len;
+      for (let j = 0; j < N; ++j) {
+        const t = (j+0.5)/N;
+        const px = A.x + dx*t, py = A.y + dy*t;
+        let off = (effectDir.value==='outward'?1:-1)*(38+Math.random()*44);
+        ctx.beginPath(); ctx.moveTo(px*scale, py*scale); ctx.lineTo((px + nx*off)*scale, (py + ny*off)*scale); ctx.stroke();
+        ctx.font = (13*scale) + 'px monospace'; ctx.fillStyle = '#e0e0e5';
+        ctx.fillText(letters[j%26], (px+nx*off+2)*scale, (py+ny*off-2)*scale);
+      }
+    }
+    ctx.restore();
+  }
+
+  // Box tool
+  boxes.forEach(b => {
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = manualBoxWidth.value * scale;
+    ctx.strokeRect(b.x1*scale, b.y1*scale, (b.x2-b.x1)*scale, (b.y2-b.y1)*scale);
+    // Add ratio label (only pure number, not unit)
+    const w = Math.abs(b.x2-b.x1), h = Math.abs(b.y2-b.y1);
+    ctx.font = (15*scale) + 'px Inter, Arial'; ctx.fillStyle = '#f4f4fa';
+    const ratio = w && h ? (w/h).toFixed(5) : 'NaN';
+    ctx.fillText(ratio, (Math.min(b.x1, b.x2)+w/2-16)*scale, (Math.min(b.y1, b.y2)-8)*scale);
+    ctx.restore();
+  });
+}
+
+
+// 3. 然后是导出高清按钮，这个一定要写在 drawHD 后面！！！
+document.getElementById('exportHdBtn').onclick = () => {
+  const scale = 5; // 改成你想要的倍数
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = canvas.width * scale;
+  tempCanvas.height = canvas.height * scale;
+  const tempCtx = tempCanvas.getContext('2d');
+  drawHD(tempCtx, scale);
+  const a = document.createElement('a');
+  a.download = 'canvas_hd.png';
+  a.href = tempCanvas.toDataURL();
+  a.click();
+};
 // ——— State & Undo ———
 let snapshotStack = [], snapshotPtr = -1;
 function takeSnapshot() {
@@ -228,13 +337,27 @@ exportBtn.onclick = () => {
   a.href = canvas.toDataURL();
   a.click();
 };
+document.getElementById('exportHdBtn').onclick = () => {
+  const scale = 3; // 想导出多高清就改多大，比如2、3、4
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = canvas.width * scale;
+  tempCanvas.height = canvas.height * scale;
+  const tempCtx = tempCanvas.getContext('2d');
+  // 高清重绘（draw方法要升级，见下）
+  drawHD(tempCtx, scale);
+  const a = document.createElement('a');
+  a.download = 'canvas_hd.png';
+  a.href = tempCanvas.toDataURL();
+  a.click();
+};
 clearAnchors.onclick = () => { anchors = []; draw(); takeSnapshot(); };
 clearBorder.onclick = () => { borderAnchors = []; draw(); takeSnapshot(); };
 clearBoxes.onclick = () => { boxes = []; draw(); takeSnapshot(); };
 // ——— Draw Logic ———
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (img.naturalWidth) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+ if (img.naturalWidth && document.getElementById('showImg')?.checked)
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   // Anchor lines
   if (anchors.length > 1) {
     ctx.save(); ctx.strokeStyle = '#fff';
@@ -315,11 +438,104 @@ function draw() {
     const ratio = w && h ? (w/h).toFixed(5) : 'NaN';
     ctx.fillText(ratio, Math.min(b.x1, b.x2)+w/2-16, Math.min(b.y1, b.y2)-8);
     ctx.restore();
+  });function drawHD(ctx, scale) {
+  ctx.clearRect(0, 0, canvas.width * scale, canvas.height * scale);
+
+  if (img.naturalWidth && document.getElementById('showImg')?.checked)
+    ctx.drawImage(img, 0, 0, canvas.width * scale, canvas.height * scale);
+
+  // Anchor lines
+  if (anchors.length > 1) {
+    ctx.save(); ctx.strokeStyle = '#fff';
+    ctx.lineWidth = edgeWidth.value * scale;
+    if (lineStyle.value === 'dashed') ctx.setLineDash([10*scale,6*scale]);
+    else if (lineStyle.value === 'mixed') ctx.setLineDash([6*scale,4*scale,2*scale,4*scale]);
+    else ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(anchors[0].x*scale, anchors[0].y*scale);
+    for (let i = 1; i < anchors.length; ++i) ctx.lineTo(anchors[i].x*scale, anchors[i].y*scale);
+    ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  }
+
+  // Anchor decorations (boxes, label, circle)
+  anchors.forEach((p,i) => {
+    ctx.fillStyle = '#fff'; ctx.fillRect(p.x*scale-4*scale, p.y*scale-4*scale, 8*scale, 8*scale);
+    if (toggleAnchorLabels.checked) {
+      ctx.font = (14*scale) + 'px Inter, Arial'; ctx.fillStyle = '#f8f8fa';
+      ctx.fillText(`label${i+1}`, (p.x+6)*scale, (p.y-6)*scale);
+    }
+    if (toggleCircles.checked) {
+      const r = canvas.width * (parseFloat(circleMin.value) + Math.random() * (parseFloat(circleMax.value)-parseFloat(circleMin.value)));
+      ctx.setLineDash([4*scale,4*scale]);
+      ctx.strokeStyle = '#bbb';
+      ctx.lineWidth = 1*scale;
+      ctx.beginPath(); ctx.arc(p.x*scale, p.y*scale, r*scale, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    }
   });
+
+  // Path tool lines
+  if (!hidePath.checked && borderAnchors.length>1) {
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2*scale;
+    ctx.beginPath();
+    ctx.moveTo(borderAnchors[0].x*scale, borderAnchors[0].y*scale);
+    for (let i = 1; i < borderAnchors.length; ++i) ctx.lineTo(borderAnchors[i].x*scale, borderAnchors[i].y*scale);
+    ctx.stroke();
+    ctx.restore();
+    if (toggleBorderLabels.checked) {
+      borderAnchors.forEach((p,i) => {
+        ctx.font = (14*scale) + 'px Inter, Arial'; ctx.fillStyle = '#e4e4eb';
+        ctx.fillText(String.fromCharCode(97+i), (p.x+6)*scale, (p.y-6)*scale);
+      });
+    }
+  }
+
+  // Path tool effect: 26 letters lines
+  if (effectToggle.checked && borderAnchors.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = effectThickness.value * scale;
+    const N = Math.floor(+effectDensity.value);
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (let i = 0; i < borderAnchors.length-1; ++i) {
+      const A = borderAnchors[i], B = borderAnchors[i+1];
+      const dx = B.x - A.x, dy = B.y - A.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 10) continue;
+      const nx = dy/len, ny = -dx/len;
+      for (let j = 0; j < N; ++j) {
+        const t = (j+0.5)/N;
+        const px = A.x + dx*t, py = A.y + dy*t;
+        let off = (effectDir.value==='outward'?1:-1)*(38+Math.random()*44);
+        ctx.beginPath(); ctx.moveTo(px*scale, py*scale); ctx.lineTo((px + nx*off)*scale, (py + ny*off)*scale); ctx.stroke();
+        ctx.font = (13*scale) + 'px monospace'; ctx.fillStyle = '#e0e0e5';
+        ctx.fillText(letters[j%26], (px+nx*off+2)*scale, (py+ny*off-2)*scale);
+      }
+    }
+    ctx.restore();
+  }
+
+  // Box tool
+  boxes.forEach(b => {
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = manualBoxWidth.value * scale;
+    ctx.strokeRect(b.x1*scale, b.y1*scale, (b.x2-b.x1)*scale, (b.y2-b.y1)*scale);
+    // Add ratio label (only pure number, not unit)
+    const w = Math.abs(b.x2-b.x1), h = Math.abs(b.y2-b.y1);
+    ctx.font = (15*scale) + 'px Inter, Arial'; ctx.fillStyle = '#f4f4fa';
+    const ratio = w && h ? (w/h).toFixed(5) : 'NaN';
+    ctx.fillText(ratio, (Math.min(b.x1, b.x2)+w/2-16)*scale, (Math.min(b.y1, b.y2)-8)*scale);
+    ctx.restore();
+  });
+}
+
 }// ——— Mouse & Interactive Events ———
 [
   toggleCircles, toggleAnchorLabels, deleteAnchorMode, circleMin, circleMax, lineStyle, edgeWidth, density,
-  hidePath, toggleBorderLabels, deleteBorderMode, effectToggle, effectDensity, effectThickness, effectDir, manualBoxWidth
+  hidePath, toggleBorderLabels, deleteBorderMode, effectToggle, effectDensity, effectThickness, effectDir, manualBoxWidth,
+  document.getElementById('showImg')
 ].forEach(el => el.addEventListener('input', draw));
 
 canvas.addEventListener('click', e => {
