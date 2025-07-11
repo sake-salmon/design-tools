@@ -1,0 +1,951 @@
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Enhanced Tracking Lines Editor</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #232429;
+      color: #fff;
+      font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+      overflow: hidden;
+    }
+    #canvasContainer {
+      position: fixed;
+      left: 270px;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: calc(100vw - 270px);
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    #canvas {
+      background: transparent;
+      max-width: 100%;
+      max-height: 100vh;
+      display: block;
+      margin: auto;
+      border-radius: 16px;
+      box-shadow: 0 8px 48px #0005;
+    }
+    #controls {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 260px;
+      height: 100vh;
+      padding: 22px 18px 18px 16px;
+      background: rgba(35,36,41,0.98);
+      box-shadow: 2px 0 24px #0005;
+      border-radius: 0 16px 16px 0;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      overflow-y: auto;
+    }
+    .scrollable-section {
+      max-height: 300px;
+      overflow-y: auto;
+      padding-right: 5px;
+    }
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+    .section {
+      margin-bottom: 18px;
+    }
+    label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 9px 0;
+      font-size: 14px;
+    }
+    input, select, button {
+      margin-left: 8px;
+      border-radius: 5px;
+      border: none;
+    }
+    button {
+      background: linear-gradient(90deg, #a0b8c8 0%, #8188ad 100%);
+      color: #fff;
+      font-weight: 500;
+      padding: 5px 13px;
+      box-shadow: 0 1px 6px #0001;
+      cursor: pointer;
+    }
+    input[type=range] {
+      flex: 1;
+      margin: 0 8px;
+    }
+    input[type=checkbox] {
+      accent-color: #9bf;
+    }
+    select {
+      background: #252a36;
+      color: #fff;
+      border: none;
+      padding: 2px 7px;
+    }
+    ::-webkit-scrollbar { width: 6px; background: #202127; }
+    ::-webkit-scrollbar-thumb { background: #393d44; border-radius: 5px; }
+    .color-picker {
+      width: 20px;
+      height: 20px;
+      border: 1px solid #fff;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .animation-controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .animation-controls button {
+      flex: 1;
+      padding: 5px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvasContainer">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="controls">
+    <h2>Enhanced Tracking Lines Editor</h2>
+    <div class="section">
+      <label>Mode <select id="toolMode"><option value="anchor">Anchor Tool</option><option value="border">Path Tool</option><option value="box">Box Tool</option></select></label>
+      <label>Image <input type="file" id="imgInput" accept="image/*"></label>
+      <label><span>Show Image</span><input type="checkbox" id="showImg" checked></label>
+      <label>Export <button id="exportBtn">PNG Export</button></label>
+      <label>HD Export <button id="exportHdBtn">高清PNG</button></label>
+      <label>Export Video <button id="exportVideoBtn">MP4 Video</button></label>
+      <div class="animation-controls">
+        <button id="startAllAnimations">Start All</button>
+        <button id="stopAllAnimations">Stop All</button>
+        <button id="resetAllAnimations">Reset All</button>
+      </div>
+    </div>
+    
+    <div id="anchorSection" class="section scrollable-section">
+      <h2>Anchor Tool</h2>
+      <label>Clear All <button id="clearAnchors">Clear</button></label>
+      <label><span>Show Decorations</span><input type="checkbox" id="toggleDecorations" checked></label>
+      <label>Decoration Type <select id="decorationType"><option value="circle">Circle</option><option value="square">Square</option></select></label>
+      <label><span>Show Labels</span><input type="checkbox" id="toggleAnchorLabels" checked></label>
+      <label><span>Delete Mode</span><input type="checkbox" id="deleteAnchorMode"></label>
+      <label><span>Animate Decorations</span><input type="checkbox" id="animateDecorations"></label>
+      <label><span>Animate Anchors</span><input type="checkbox" id="animateAnchors"></label>
+      <label>Decoration Speed <input type="range" id="decorationAnimSpeed" min="10" max="500" step="10" value="60"></label>
+      <label><span>Anchor Jitter</span><input type="checkbox" id="anchorJitterToggle"></label>
+      <label>Jitter Amount <input type="range" id="anchorJitterAmount" min="0" max="20" step="1" value="5"></label>
+      <label><span>Curved Lines</span><input type="checkbox" id="curvedLines"></label>
+      <label>Circle Min <input type="range" id="circleMin" min="0" max="0.5" step="0.01" value="0.05"></label>
+      <label>Circle Max <input type="range" id="circleMax" min="0" max="1" step="0.01" value="0.15"></label>
+      <label>Line Style <select id="lineStyle"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="mixed">Mixed</option></select></label>
+      <label>Edge Width <input type="range" id="edgeWidth" min="0.5" max="8" step="0.1" value="2"></label>
+      <label>Density <input type="range" id="density" min="0" max="1" step="0.01" value="0.5"></label>
+      <label>Animation Speed <input type="range" id="anchorAnimSpeed" min="10" max="500" step="10" value="60"></label>
+      <label>Line Color <input type="color" id="anchorLineColor" class="color-picker" value="#ffffff"></label>
+      <label>Label Color <input type="color" id="anchorLabelColor" class="color-picker" value="#f8f8fa"></label>
+    </div>
+    
+    <div id="borderSection" class="section scrollable-section">
+      <h2>Path Tool</h2>
+      <label>Clear All <button id="clearBorderAnchors">Clear</button></label>
+      <label><span>Hide Path</span><input type="checkbox" id="hidePath"></label>
+      <label><span>Show Labels</span><input type="checkbox" id="toggleBorderLabels" checked></label>
+      <label><span>Delete Mode</span><input type="checkbox" id="deleteBorderMode"></label>
+      <label><span>Enable Effect</span><input type="checkbox" id="effectToggle"></label>
+      <label>Effect Density <input type="range" id="effectDensity" min="1" max="26" step="1" value="26"></label>
+      <label>Effect Thickness <input type="range" id="effectThickness" min="1" max="8" step="0.5" value="2"></label>
+      <label>Direction <select id="effectDir"><option value="outward">Outward</option><option value="inward">Inward</option></select></label>
+      <label>Line Color <input type="color" id="borderLineColor" class="color-picker" value="#ffffff"></label>
+      <label>Label Color <input type="color" id="borderLabelColor" class="color-picker" value="#e4e4eb"></label>
+    </div>
+    
+    <div id="boxSection" class="section scrollable-section">
+      <h2>Box Tool</h2>
+      <label><span>Animate Position</span><input type="checkbox" id="animateBoxes"></label>
+      <label><span>Animate Size</span><input type="checkbox" id="animateBoxSize"></label>
+      <label>Size Variation <input type="range" id="boxSizeVariation" min="0.1" max="3" step="0.1" value="1.5"></label>
+      <label>Box Stroke <input type="range" id="manualBoxWidth" min="1" max="10" step="1" value="3"></label>
+      <label>Clear All <button id="clearBoxes">Clear</button></label>
+      <label>Animation Speed <input type="range" id="boxAnimSpeed" min="10" max="500" step="10" value="60"></label>
+      <label>Jitter Amount <input type="range" id="boxJitterAmount" min="0" max="50" step="1" value="20"></label>
+      <label>Box Color <input type="color" id="boxColor" class="color-picker" value="#ffffff"></label>
+      <label>Label Color <input type="color" id="boxLabelColor" class="color-picker" value="#f4f4fa"></label>
+    </div>
+  </div>
+  
+  <script>
+  // Video recording variables
+  let mediaRecorder;
+  let recordedChunks = [];
+  let recordingStartTime;
+  const recordingTimeLimit = 10000; // 10 seconds default
+  
+  // ——— State & Undo ———
+  let snapshotStack = [], snapshotPtr = -1;
+  let currentAnchorLines = [];
+  let currentDecorationSizes = [];
+  let boxLinks = [];
+  let anchorLabels = [];
+  let lastAnchorUpdate = 0;
+  let lastBoxUpdate = 0;
+  let lastDecorationUpdate = 0;
+  let animationFrameId;
+  let anchorAnimationInterval;
+  let boxAnimationInterval;
+  let decorationAnimationInterval;
+
+  function takeSnapshot() {
+    snapshotStack = snapshotStack.slice(0, snapshotPtr+1);
+    snapshotStack.push({
+      anchors: anchors.map(p=>({...p})),
+      borderAnchors: borderAnchors.map(p=>({...p})),
+      boxes: boxes.map(b=>({...b})),
+      anchorLabels: [...anchorLabels]
+    });
+    snapshotPtr = snapshotStack.length-1;
+  }
+
+  function restoreSnapshot() {
+    if (snapshotPtr < 0) return;
+    const snap = snapshotStack[snapshotPtr];
+    anchors = snap.anchors.map(p=>({...p}));
+    borderAnchors = snap.borderAnchors.map(p=>({...p}));
+    boxes = snap.boxes.map(b=>({...b}));
+    anchorLabels = [...snap.anchorLabels];
+    draw();
+  }
+
+  function undo() { if (snapshotPtr > 0) { snapshotPtr--; restoreSnapshot(); } }
+  function redo() { if (snapshotPtr < snapshotStack.length-1) { snapshotPtr++; restoreSnapshot(); } }
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey||e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+    if ((e.ctrlKey||e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key==='z'))) { e.preventDefault(); redo(); }
+  });
+
+  // ——— DOM Elements ———
+  const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+  const toolMode = document.getElementById('toolMode');
+  const animateAnchors = document.getElementById('animateAnchors');
+  const imgInput = document.getElementById('imgInput');
+  const exportBtn = document.getElementById('exportBtn');
+  const exportHdBtn = document.getElementById('exportHdBtn');
+  const exportVideoBtn = document.getElementById('exportVideoBtn');
+  const clearAnchors = document.getElementById('clearAnchors');
+  const clearBorder = document.getElementById('clearBorderAnchors');
+  const clearBoxes = document.getElementById('clearBoxes');
+  const toggleDecorations = document.getElementById('toggleDecorations');
+  const decorationType = document.getElementById('decorationType');
+  const toggleAnchorLabels = document.getElementById('toggleAnchorLabels');
+  const deleteAnchorMode = document.getElementById('deleteAnchorMode');
+  const animateDecorations = document.getElementById('animateDecorations');
+  const decorationAnimSpeed = document.getElementById('decorationAnimSpeed');
+  const anchorJitterToggle = document.getElementById('anchorJitterToggle');
+  const anchorJitterAmount = document.getElementById('anchorJitterAmount');
+  const curvedLines = document.getElementById('curvedLines');
+  const circleMin = document.getElementById('circleMin');
+  const circleMax = document.getElementById('circleMax');
+  const lineStyle = document.getElementById('lineStyle');
+  const edgeWidth = document.getElementById('edgeWidth');
+  const density = document.getElementById('density');
+  const anchorAnimSpeed = document.getElementById('anchorAnimSpeed');
+  const hidePath = document.getElementById('hidePath');
+  const toggleBorderLabels = document.getElementById('toggleBorderLabels');
+  const deleteBorderMode = document.getElementById('deleteBorderMode');
+  const effectToggle = document.getElementById('effectToggle');
+  const effectDensity = document.getElementById('effectDensity');
+  const effectThickness = document.getElementById('effectThickness');
+  const effectDir = document.getElementById('effectDir');
+  const manualBoxWidth = document.getElementById('manualBoxWidth');
+  const animateBoxes = document.getElementById('animateBoxes');
+  const animateBoxSize = document.getElementById('animateBoxSize');
+  const boxSizeVariation = document.getElementById('boxSizeVariation');
+  const boxAnimSpeed = document.getElementById('boxAnimSpeed');
+  const boxJitterAmount = document.getElementById('boxJitterAmount');
+  const boxAnimationControls = document.getElementById('boxAnimationControls');
+  const anchorSection = document.getElementById('anchorSection');
+  const borderSection = document.getElementById('borderSection');
+  const boxSection = document.getElementById('boxSection');
+  const anchorLineColor = document.getElementById('anchorLineColor');
+  const anchorLabelColor = document.getElementById('anchorLabelColor');
+  const borderLineColor = document.getElementById('borderLineColor');
+  const borderLabelColor = document.getElementById('borderLabelColor');
+  const boxColor = document.getElementById('boxColor');
+  const boxLabelColor = document.getElementById('boxLabelColor');
+  const startAllAnimationsBtn = document.getElementById('startAllAnimations');
+  const stopAllAnimationsBtn = document.getElementById('stopAllAnimations');
+  const resetAllAnimationsBtn = document.getElementById('resetAllAnimations');
+  let img = new Image(), imgScale = 1;
+  let anchors = [], borderAnchors = [], boxes = [];
+  let draggingBox = false, boxStart = null;
+  let selecting = false, selStart, selEnd;
+
+  // Initialize anchor labels
+  function initAnchorLabels() {
+    anchorLabels = anchors.map((_, i) => `label${i+1}`);
+  }
+
+  function randomAnchorLines() {
+    const lines = [];
+    const N = Math.floor(Math.random() * 10) + 8;
+    for (let i = 0; i < N; i++) {
+      let idx1 = Math.floor(Math.random() * anchors.length);
+      let idx2 = Math.floor(Math.random() * anchors.length);
+      if (idx1 === idx2) continue;
+      lines.push([idx1, idx2]);
+    }
+    return lines;
+  }
+
+  function randomBoxLinks() {
+  let links = [];
+  for (let a = 0; a < boxes.length; a++) {
+    // 随机选择 2~4 个不同的 box 作为目标
+    let targets = [];
+    while (targets.length < Math.min(boxes.length - 1, 3 + Math.floor(Math.random() * 2))) {
+      let b = Math.floor(Math.random() * boxes.length);
+      if (b !== a && !targets.includes(b)) {
+        targets.push(b);
+      }
+    }
+    targets.forEach(b => {
+      let ap = Math.floor(Math.random() * 4);
+      let bp = Math.floor(Math.random() * 4);
+      links.push({ from: a, to: b, ap, bp });
+    });
+  }
+  return links;
+}
+
+
+  function refreshBoxesAndLinks() {
+    boxes.forEach(b => {
+      const variation = parseFloat(boxSizeVariation.value);
+      b.displayWidth = b.originalWidth * (0.5 + Math.random() * (variation - 0.5));
+      b.displayHeight = b.originalHeight * (0.5 + Math.random() * (variation - 0.5));
+      b.displayWidth = Math.max(b.displayWidth, 5);
+      b.displayHeight = Math.max(b.displayHeight, 5);
+    });
+    boxLinks = randomBoxLinks();
+  }
+
+  function getCorner(b, corner) {
+    const x = b.x1, y = b.y1, w = b.displayWidth, h = b.displayHeight;
+    switch (corner) {
+      case 0: return { x: x,     y: y };
+      case 1: return { x: x + w, y: y };
+      case 2: return { x: x + w, y: y + h };
+      case 3: return { x: x,     y: y + h };
+    }
+  }
+
+  function updateSections() {
+    anchorSection.style.display = toolMode.value === 'anchor' ? 'block' : 'none';
+    borderSection.style.display = toolMode.value === 'border' ? 'block' : 'none';
+    boxSection.style.display = toolMode.value === 'box' ? 'block' : 'none';
+    draw();
+  }
+
+  function resizeCanvas() {
+    if (!img.naturalWidth) { canvas.width = 960; canvas.height = 600; }
+    else {
+      const maxW = window.innerWidth - 370, maxH = window.innerHeight;
+      imgScale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+      canvas.width = img.naturalWidth * imgScale;
+      canvas.height = img.naturalHeight * imgScale;
+    }
+    draw();
+  }
+
+  // Animation control functions
+  function startAllAnimations() {
+    animateAnchors.checked = true;
+    animateDecorations.checked = true;
+    animateBoxes.checked = true;
+    animateBoxSize.checked = true;
+    setupAnimationIntervals();
+    draw();
+  }
+
+  function stopAllAnimations() {
+    animateAnchors.checked = false;
+    animateDecorations.checked = false;
+    animateBoxes.checked = false;
+    animateBoxSize.checked = false;
+    clearAnimationIntervals();
+    draw();
+  }
+
+  function resetAllAnimations() {
+    anchors = [];
+    borderAnchors = [];
+    boxes = [];
+    anchorLabels = [];
+    currentAnchorLines = [];
+    boxLinks = [];
+    currentDecorationSizes = [];
+    clearAnimationIntervals();
+    draw();
+    takeSnapshot();
+  }
+
+  function setupAnimationIntervals() {
+    clearAnimationIntervals();
+    
+    if (animateAnchors.checked) {
+      currentAnchorLines = randomAnchorLines();
+      anchorAnimationInterval = setInterval(() => {
+        currentAnchorLines = randomAnchorLines();
+      }, anchorAnimSpeed.value);
+    }
+    
+    if (animateDecorations.checked) {
+      decorationAnimationInterval = setInterval(() => {
+        currentDecorationSizes = anchors.map(() => 
+          canvas.width * (parseFloat(circleMin.value) + 
+          Math.random() * (parseFloat(circleMax.value)-parseFloat(circleMin.value)))
+        );
+      }, decorationAnimSpeed.value);
+    }
+    
+    if (animateBoxes.checked) {
+      boxAnimationInterval = setInterval(() => {
+        boxLinks = randomBoxLinks();
+      }, boxAnimSpeed.value);
+    }
+  }
+
+  function clearAnimationIntervals() {
+    if (anchorAnimationInterval) clearInterval(anchorAnimationInterval);
+    if (boxAnimationInterval) clearInterval(boxAnimationInterval);
+    if (decorationAnimationInterval) clearInterval(decorationAnimationInterval);
+  }
+
+  // Video export functions
+  async function startVideoRecording() {
+  const origWidth = canvas.width, origHeight = canvas.height;
+
+    const duration = parseInt(prompt('Enter recording duration in seconds (max 60):', '10')) * 1000;
+    if (isNaN(duration) || duration <= 0 || duration > 60000) {
+      alert('Please enter a valid duration between 1-60 seconds');
+      return;
+    }
+
+    try {
+      const stream = canvas.captureStream(30);
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9'
+      });
+
+      recordedChunks = [];
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'canvas_animation.webm';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+draw();
+      };
+
+      recordingStartTime = Date.now();
+      mediaRecorder.start(100); // Collect data every 100ms
+      
+      setTimeout(() => {
+        mediaRecorder.stop();
+      }, duration);
+
+    } catch (err) {
+      console.error('Error recording video:', err);
+      alert('Error starting video recording. Please try again.');
+    }
+  }
+
+  // Event listeners
+  toolMode.addEventListener('change', updateSections);
+  window.addEventListener('resize', resizeCanvas);
+
+  animateAnchors.addEventListener('change', function() {
+    if (this.checked) {
+      setupAnimationIntervals();
+    } else {
+      clearAnimationIntervals();
+    }
+    draw();
+  });
+
+  animateDecorations.addEventListener('change', function() {
+    if (this.checked) {
+      setupAnimationIntervals();
+    } else {
+      clearAnimationIntervals();
+    }
+    draw();
+  });
+
+  animateBoxes.addEventListener('change', function() {
+    if (this.checked) {
+      setupAnimationIntervals();
+    } else {
+      clearAnimationIntervals();
+    }
+    draw();
+  });
+
+  animateBoxSize.addEventListener('change', draw);
+
+  anchorAnimSpeed.addEventListener('input', function() {
+    if (animateAnchors.checked) {
+      setupAnimationIntervals();
+    }
+  });
+
+  decorationAnimSpeed.addEventListener('input', function() {
+    if (animateDecorations.checked) {
+      setupAnimationIntervals();
+    }
+  });
+
+  boxAnimSpeed.addEventListener('input', function() {
+    if (animateBoxes.checked) {
+      setupAnimationIntervals();
+    }
+  });
+
+  img.onload = () => {
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    initAnchorLabels();
+    takeSnapshot();
+    draw();
+};
+
+  imgInput.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    img.src = URL.createObjectURL(file);
+    anchors = []; borderAnchors = []; boxes = [];
+    anchorLabels = [];
+    setTimeout(resizeCanvas, 50);
+    setTimeout(() => {
+      initAnchorLabels();
+      takeSnapshot();
+    }, 100);
+  };
+
+  exportBtn.onclick = () => {
+    const a = document.createElement('a');
+    a.download = 'canvas.png';
+    a.href = canvas.toDataURL();
+    a.click();
+  };
+
+
+  exportVideoBtn.onclick = startVideoRecording;
+  startAllAnimationsBtn.addEventListener('click', startAllAnimations);
+  stopAllAnimationsBtn.addEventListener('click', stopAllAnimations);
+  resetAllAnimationsBtn.addEventListener('click', resetAllAnimations);
+
+  clearAnchors.onclick = () => { 
+    anchors = []; 
+    anchorLabels = [];
+    currentDecorationSizes = [];
+    draw(); 
+    takeSnapshot(); 
+  };
+
+  clearBorder.onclick = () => { borderAnchors = []; draw(); takeSnapshot(); };
+  clearBoxes.onclick = () => { boxes = []; draw(); takeSnapshot(); };
+
+  // Main draw function
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (img.naturalWidth && document.getElementById('showImg').checked)
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    // Anchor lines
+    if (anchors.length > 1) {
+      ctx.save(); 
+      ctx.strokeStyle = anchorLineColor.value;
+      ctx.lineWidth = edgeWidth.value;
+      if (lineStyle.value === 'dashed') ctx.setLineDash([10,6]);
+      else if (lineStyle.value === 'mixed') ctx.setLineDash([6,4,2,4]);
+      else ctx.setLineDash([]);
+      
+      if (curvedLines.checked && anchors.length > 2) {
+        // Draw curved lines
+        ctx.beginPath();
+        ctx.moveTo(anchors[0].x, anchors[0].y);
+        for (let i = 1; i < anchors.length - 1; ++i) {
+          const xc = (anchors[i].x + anchors[i + 1].x) / 2;
+          const yc = (anchors[i].y + anchors[i + 1].y) / 2;
+          ctx.quadraticCurveTo(anchors[i].x, anchors[i].y, xc, yc);
+        }
+        ctx.lineTo(anchors[anchors.length-1].x, anchors[anchors.length-1].y);
+      } else {
+        // Draw straight lines
+        ctx.beginPath();
+        ctx.moveTo(anchors[0].x, anchors[0].y);
+        for (let i = 1; i < anchors.length; ++i) ctx.lineTo(anchors[i].x, anchors[i].y);
+      }
+      ctx.stroke(); 
+      ctx.setLineDash([]); 
+      ctx.restore();
+    }
+
+    // Draw animated anchor connections if enabled
+    if (animateAnchors.checked && anchors.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = anchorLineColor.value;
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = edgeWidth.value;
+      currentAnchorLines.forEach(([i, j]) => {
+        let a1 = anchors[i], a2 = anchors[j];
+        ctx.beginPath();
+        ctx.moveTo(a1.x, a1.y);
+        ctx.lineTo(a2.x, a2.y);
+        ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    // Anchor decorations (boxes, label, circle/square)
+    anchors.forEach((p,i) => {
+      // Apply jitter animation if enabled (visual only, doesn't affect actual position)
+      let jitterX = 0, jitterY = 0;
+      if (anchorJitterToggle.checked) {
+        jitterX = (Math.random() - 0.5) * anchorJitterAmount.value;
+        jitterY = (Math.random() - 0.5) * anchorJitterAmount.value;
+      }
+      
+      ctx.save();
+      ctx.translate(jitterX, jitterY);
+      
+      ctx.fillStyle = '#fff'; 
+      ctx.fillRect(p.x-4, p.y-4, 8, 8);
+      
+      if (toggleAnchorLabels.checked) {
+        ctx.font = '14px Inter, Arial'; 
+        ctx.fillStyle = anchorLabelColor.value;
+        ctx.fillText(anchorLabels[i] || `label${i+1}`, p.x+6, p.y-6);
+      }
+      
+      if (toggleDecorations.checked) {
+        const r = currentDecorationSizes[i] || 
+    canvas.width * (parseFloat(circleMin.value) + 
+    Math.random() * (parseFloat(circleMax.value) - parseFloat(circleMin.value)));
+        ctx.setLineDash([4,4]);
+        ctx.strokeStyle = '#bbb';
+        ctx.lineWidth = 1;
+        
+        if (decorationType.value === 'circle') {
+          ctx.beginPath(); 
+          ctx.arc(p.x, p.y, r, 0, Math.PI*2); 
+          ctx.stroke();
+        } else {
+          ctx.strokeRect(p.x - r, p.y - r, r*2, r*2);
+        }
+        ctx.setLineDash([]);
+      }
+      
+      ctx.restore();
+    });
+
+    // Path tool lines
+    if (!hidePath.checked && borderAnchors.length>1) {
+      ctx.save();
+      ctx.strokeStyle = borderLineColor.value;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(borderAnchors[0].x, borderAnchors[0].y);
+      for (let i = 1; i < borderAnchors.length; ++i) ctx.lineTo(borderAnchors[i].x, borderAnchors[i].y);
+      ctx.stroke();
+      ctx.restore();
+      if (toggleBorderLabels.checked) {
+        borderAnchors.forEach((p,i) => {
+          ctx.font = '14px Inter, Arial'; 
+          ctx.fillStyle = borderLabelColor.value;
+          ctx.fillText(String.fromCharCode(97+i), p.x+6, p.y-6);
+        });
+      }
+    }
+
+    // Path tool effect: 26 letters lines
+    if (effectToggle.checked && borderAnchors.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = borderLineColor.value;
+      ctx.lineWidth = effectThickness.value;
+      const N = Math.floor(+effectDensity.value);
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      for (let i = 0; i < borderAnchors.length-1; ++i) {
+        const A = borderAnchors[i], B = borderAnchors[i+1];
+        const dx = B.x - A.x, dy = B.y - A.y;
+        const len = Math.hypot(dx, dy);
+        if (len < 10) continue;
+        const nx = dy/len, ny = -dx/len;
+        for (let j = 0; j < N; ++j) {
+          const t = (j+0.5)/N;
+          const px = A.x + dx*t, py = A.y + dy*t;
+          let off = (effectDir.value==='outward'?1:-1)*(38+Math.random()*44);
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + nx*off, py + ny*off); ctx.stroke();
+          ctx.font = '13px monospace'; ctx.fillStyle = borderLabelColor.value;
+          ctx.fillText(letters[j%26], px+nx*off+2, py+ny*off-2);
+        }
+      }
+      ctx.restore();
+    }
+
+    // Box tool - draw boxes with jitter animation (visual only)
+    boxes.forEach(b => {
+      ctx.save();
+      ctx.strokeStyle = boxColor.value;
+      ctx.lineWidth = manualBoxWidth.value;
+      
+      // Calculate jitter if animation is enabled (visual only)
+      let jitterX = 0, jitterY = 0;
+      if (animateBoxes.checked) {
+        jitterX = (Math.random() - 0.5) * boxJitterAmount.value;
+        jitterY = (Math.random() - 0.5) * boxJitterAmount.value;
+      }
+      
+      // Calculate size if size animation is enabled
+      let displayWidth = b.originalWidth;
+      let displayHeight = b.originalHeight;
+      if (animateBoxSize.checked) {
+        const variation = parseFloat(boxSizeVariation.value);
+        displayWidth = b.originalWidth * (0.5 + Math.random() * (variation - 0.5));
+        displayHeight = b.originalHeight * (0.5 + Math.random() * (variation - 0.5));
+        displayWidth = Math.max(displayWidth, 5);
+        displayHeight = Math.max(displayHeight, 5);
+      }
+      
+      // Draw the box with jitter and size variation
+      ctx.translate(jitterX, jitterY);
+      ctx.strokeRect(b.x1, b.y1, displayWidth * (b.x2 > b.x1 ? 1 : -1), 
+                               displayHeight * (b.y2 > b.y1 ? 1 : -1));
+      
+      // Add ratio label
+      ctx.font = '15px Inter, Arial'; 
+      ctx.fillStyle = boxLabelColor.value;
+      const ratio = displayWidth && displayHeight ? (displayWidth/displayHeight).toFixed(5) : 'NaN';
+      ctx.fillText(ratio, Math.min(b.x1, b.x2)+displayWidth/2-16, Math.min(b.y1, b.y2)-8);
+      
+      ctx.restore();
+    });
+
+    // Draw box connections if animation is enabled
+    if (animateBoxes.checked && boxes.length > 1) {
+      ctx.save();
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = boxColor.value;
+      ctx.lineWidth = 1;
+      boxLinks.forEach(link => {
+        let a = boxes[link.from], b = boxes[link.to];
+        let p1 = getCorner(a, link.ap);
+        let p2 = getCorner(b, link.bp);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    // Selection rectangle
+    if (selecting || draggingBox) {
+      ctx.setLineDash([3,3]); 
+      ctx.strokeStyle = '#bbb7';
+      const sx = selecting ? selStart.x : boxStart.x;
+      const sy = selecting ? selStart.y : boxStart.y;
+      ctx.lineWidth = draggingBox ? manualBoxWidth.value : 1;
+      ctx.strokeRect(sx, sy, selEnd.x - sx, selEnd.y - sy);
+      ctx.setLineDash([]);
+    }
+
+    animationFrameId = requestAnimationFrame(draw);
+  }
+
+  // ——— Mouse & Interactive Events ———
+  [
+    toggleDecorations, decorationType, toggleAnchorLabels, deleteAnchorMode, 
+    animateAnchors, animateDecorations, decorationAnimSpeed, anchorJitterToggle, 
+    anchorJitterAmount, curvedLines, circleMin, circleMax, lineStyle, edgeWidth, 
+    density, anchorAnimSpeed, hidePath, toggleBorderLabels, deleteBorderMode, 
+    effectToggle, effectDensity, effectThickness, effectDir, manualBoxWidth, 
+    animateBoxes, animateBoxSize, boxSizeVariation, boxAnimSpeed, boxJitterAmount, 
+    document.getElementById('showImg'), anchorLineColor, anchorLabelColor, 
+    borderLineColor, borderLabelColor, boxColor, boxLabelColor
+  ].forEach(el => el.addEventListener('input', draw));
+
+  canvas.addEventListener('click', e => {
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    
+    if (toolMode.value === 'anchor' && !deleteAnchorMode.checked) {
+      anchors.push({ x, y });
+      anchorLabels.push(`label${anchors.length}`);
+      currentDecorationSizes.push(0);
+      draw(); 
+      takeSnapshot();
+    } else if (toolMode.value === 'border' && !deleteBorderMode.checked) {
+      borderAnchors.push({ x, y }); 
+      draw(); 
+      takeSnapshot();
+    } else if (toolMode.value === 'anchor' && deleteAnchorMode.checked) {
+      // Find and remove the closest anchor
+      let minDist = Infinity;
+      let closestIdx = -1;
+      anchors.forEach((p, i) => {
+        const dist = Math.hypot(p.x - x, p.y - y);
+        if (dist < minDist && dist < 20) { // 20px threshold
+          minDist = dist;
+          closestIdx = i;
+        }
+      });
+      if (closestIdx >= 0) {
+        anchors.splice(closestIdx, 1);
+        anchorLabels.splice(closestIdx, 1);
+        currentDecorationSizes.splice(closestIdx, 1);
+        draw();
+        takeSnapshot();
+      }
+    }
+  });
+
+  canvas.addEventListener('mousedown', e => {
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if ((toolMode.value === 'anchor' && deleteAnchorMode.checked) || 
+        (toolMode.value === 'border' && deleteBorderMode.checked)) {
+      selecting = true; 
+      selStart = { x, y };
+      selEnd = { x, y };
+    } else if (toolMode.value === 'box') {
+      draggingBox = true; 
+      boxStart = { x, y };
+    }
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if (selecting || draggingBox) {
+      selEnd = { x, y };
+    }
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if (selecting) {
+      const x0 = Math.min(selStart.x, selEnd.x), x1 = Math.max(selStart.x, selEnd.x);
+      const y0 = Math.min(selStart.y, selEnd.y), y1 = Math.max(selStart.y, selEnd.y);
+      if (toolMode.value === 'anchor') {
+        // Remove anchors in selection area and update labels
+        const newAnchors = [];
+        const newLabels = [];
+        const newSizes = [];
+        anchors.forEach((p, i) => {
+          if (p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1) {
+            newAnchors.push(p);
+            newLabels.push(anchorLabels[i]);
+            newSizes.push(currentDecorationSizes[i]);
+          }
+        });
+        anchors = newAnchors;
+        anchorLabels = newLabels;
+        currentDecorationSizes = newSizes;
+      } else if (toolMode.value === 'border') {
+        borderAnchors = borderAnchors.filter(p => p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1);
+      }
+      selecting = false; 
+      selStart = selEnd = null; 
+      draw(); 
+      takeSnapshot();
+    } else if (draggingBox) {
+      boxes.push({ 
+        x1: boxStart.x, 
+        y1: boxStart.y, 
+        x2: x, 
+        y2: y,
+        originalWidth: Math.abs(x - boxStart.x),
+        originalHeight: Math.abs(y - boxStart.y)
+      });
+      draggingBox = false; 
+      draw(); 
+      takeSnapshot();
+    }
+  });
+
+  // Double click to edit anchor label
+  canvas.addEventListener('dblclick', e => {
+    if (toolMode.value !== 'anchor') return;
+    
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    
+    // Find the closest anchor
+    let minDist = Infinity;
+    let closestIdx = -1;
+    anchors.forEach((p, i) => {
+      const dist = Math.hypot(p.x - x, p.y - y);
+      if (dist < minDist && dist < 20) { // 20px threshold
+        minDist = dist;
+        closestIdx = i;
+      }
+    });
+    
+    if (closestIdx >= 0) {
+      const newLabel = prompt('Edit anchor label:', anchorLabels[closestIdx]);
+      if (newLabel !== null) {
+        anchorLabels[closestIdx] = newLabel;
+        draw();
+        takeSnapshot();
+      }
+    }
+  });
+
+  // Initialize
+  window.onload = () => {
+    resizeCanvas(); 
+    initAnchorLabels();
+    draw();
+  };
+  </script>
+</body>
+</html>
